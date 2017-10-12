@@ -9,19 +9,32 @@ Mappings:
   RegionMap: 
     us-east-1: 
       "32": "ami-8c1be5f6"
-      "64": "ami-7a11e213"
+    us-east-2: 
+      "32": "ami-c5062ba0"
     us-west-1: 
-      "32": "ami-c9c7978c"
-      "64": "ami-cfc7978a"
+      "32": "ami-02eada62"
+    us-west-2: 
+      "32": "ami-e689729e"
     eu-west-1: 
-      "32": "ami-37c2f643"
-      "64": "ami-31c2f645"
+      "32": "ami-acd005d5"
+    eu-west-2:
+       "32": "ami-1a7f6d7e"
     ap-southeast-1: 
-      "32": "ami-66f28c34"
-      "64": "ami-60f28c32"
+      "32": "ami-0797ea64"
+    ap-southeast-2:
+       "32": "ami-8536d6e7"
     ap-northeast-1: 
-      "32": "ami-9c03a89d"
-      "64": "ami-a003a8a1"
+      "32": "ami-2a69be4c"
+    ap-northeast-2:
+       "32": "ami-9bec36f5"
+    ap-south-1:
+      "32": "ami-4fc58420"
+    eu-central-1:
+       "32": "ami-c7ee5ca8"
+    ca-central-1:
+       "32": "ami-fd55ec99"    
+    sa-east-1:
+      "32": "ami-f1344b9d"
 
 Resources:
 
