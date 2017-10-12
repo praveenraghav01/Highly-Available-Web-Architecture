@@ -1,0 +1,183 @@
+Description: >
+    This template is used to deploys a VPC, with a pair of public and private 
+    subnets spread across two Availabilty Zones. It deploys an Internet Gateway, with 
+    a default route on the public subnets. It deploys a pair of NAT Gateways (one in each AZ), 
+    and default routes for them in the private subnets. It also create a Elastic Load Balancer 
+    with Health Check and auto scaling group with Launch Configure.
+
+Mappings: 
+  RegionMap: 
+    us-east-1: 
+      "32": "ami-8c1be5f6"
+      "64": "ami-7a11e213"
+    us-west-1: 
+      "32": "ami-c9c7978c"
+      "64": "ami-cfc7978a"
+    eu-west-1: 
+      "32": "ami-37c2f643"
+      "64": "ami-31c2f645"
+    ap-southeast-1: 
+      "32": "ami-66f28c34"
+      "64": "ami-60f28c32"
+    ap-northeast-1: 
+      "32": "ami-9c03a89d"
+      "64": "ami-a003a8a1"
+
+Resources:
+
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: '10.0.0.0/16'
+      Tags:
+        - Key: Name
+          Value: 'Demo VPC'
+
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: 'Demo-IGW'
+  
+  InternetGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      InternetGatewayId: !Ref InternetGateway
+      VpcId: !Ref VPC
+
+  PublicSubnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      AvailabilityZone: !Select [ 0, !GetAZs ]
+      CidrBlock: '10.0.1.0/24'
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: '10.0.1.0-Public'
+
+  PrivateSubnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      AvailabilityZone: !Select [ 0, !GetAZs ]
+      CidrBlock: '10.0.2.0/24'
+      Tags:
+        - Key: Name
+          Value: '10.0.2.0-Private'
+
+  NatGatewayEIP:
+    Type: AWS::EC2::EIP
+    DependsOn:  InternetGatewayAttachment
+    Properties:
+      Domain: vpc
+
+  NatGateway:
+    Type: AWS::EC2::NatGateway
+    Properties:
+      AllocationId: !GetAtt NatGatewayEIP.AllocationId
+      SubnetId: !Ref PublicSubnet
+
+  PublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: 'Demo-Public-Route'
+
+  DefaultPublicRoute:
+    Type: AWS::EC2::Route
+    DependsOn: InternetGatewayAttachment
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      DestinationCidrBlock: '0.0.0.0/0'
+      GatewayId: !Ref InternetGateway
+
+  PublicSubnetRouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      SubnetId: !Ref PublicSubnet
+
+  PrivateRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+      - Key: Name 
+        Value: "Demo-Private-Route"
+
+  DefaultPrivateRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable
+      DestinationCidrBlock: '0.0.0.0/0'
+      NatGatewayId: !Ref NatGateway
+
+  PrivateSubnetRouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable
+      SubnetId: !Ref PrivateSubnet
+
+  LaunchConfig:
+    Type: AWS::AutoScaling::LaunchConfiguration
+    Properties:
+      KeyName: webDMZ
+      ImageId: !FindInMap [RegionMap, !Ref "AWS::Region", '32']
+      InstanceType: t2.micro
+      SecurityGroups:
+        - Ref: SecurityGroups
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash 
+          yum install httpd -y
+          yum update -y
+          service httpd start
+          echo "<html><h1>Running</h1></html>"> /var/www/html/index.html
+
+  WebServerGroup:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties:
+      VPCZoneIdentifier: [!Ref PublicSubnet]
+      LaunchConfigurationName:
+        Ref: LaunchConfig
+      MinSize: "2"
+      MaxSize: "5"
+      LoadBalancerNames:
+        - Ref: ElasticLoadBalancer
+
+  ElasticLoadBalancer:
+    Type: AWS::ElasticLoadBalancing::LoadBalancer
+    Properties:
+      Subnets: [!Ref PublicSubnet]
+      SecurityGroups:
+        - Ref: SecurityGroups
+      Listeners:
+        - LoadBalancerPort: 80
+          InstancePort: 80
+          Protocol: HTTP
+      HealthCheck:
+        Target: HTTP:80/index.html
+        HealthyThreshold: '2'
+        UnhealthyThreshold: '2'
+        Interval: '10'
+        Timeout: '5'
+
+  SecurityGroups:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Allow http to client host 
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+      - IpProtocol: tcp
+        FromPort: 80
+        ToPort: 80
+        CidrIp: 0.0.0.0/0
+      - IpProtocol: tcp
+        FromPort: 22
+        ToPort: 22
+        CidrIp: 0.0.0.0/0
+        
