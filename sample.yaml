@@ -125,7 +125,6 @@ Resources:
   LaunchConfig:
     Type: AWS::AutoScaling::LaunchConfiguration
     Properties:
-      KeyName: webDMZ
       ImageId: !FindInMap [RegionMap, !Ref "AWS::Region", '32']
       InstanceType: t2.micro
       SecurityGroups:
